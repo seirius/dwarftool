@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.seirius.dwarftool.util.Allowed;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.command.CommandSource;
@@ -26,6 +27,8 @@ public class DwarfsForge {
 
     public static ObjectMapper objectMapper;
     public static ServerWorld serverWorld;
+
+    public static final int CHUNK_SIZE = 16;
 
     private static final String PATH_NAME = "path";
 
@@ -102,50 +105,47 @@ public class DwarfsForge {
             Entity entity = context.getSource().getEntity();
             if (entity != null) {
                 Chunk chunk = serverWorld.getChunk(entity.chunkCoordX, entity.chunkCoordZ);
-                DwarfsData data = new DwarfsData();
-                data.blocks = new ArrayList<>();
-                int top = 0;
-                for (int x = 0; x < 16; x++) {
-                    for (int z = 0; z < 16; z++) {
-                        int newTop = chunk.getTopBlockY(Heightmap.Type.WORLD_SURFACE, x, z);
-                        if (top < newTop) {
-                            top = newTop;
-                        }
-                    }
-                }
-                String dirtString = Blocks.DIRT.getDefaultState().toString();
-                String stoneString = Blocks.STONE.getDefaultState().toString();
-                String cobblestoneString = Blocks.COBBLESTONE.getDefaultState().toString();
-                for (int y = 0; y < top; y++) {
-                    for (int x = 0; x < 16; x++) {
-                        for (int z = 0; z < 16; z++) {
-                            BlockPos blockPos = new BlockPos(x, y, z);
-                            BlockState blockState = chunk.getBlockState(blockPos);
-                            String type = null;
-                            String blockString = blockState.toString();
-                            if (blockString.equals(dirtString)) {
-                                type = "dirt";
-                            } else if (blockString.equals(stoneString)) {
-                                type = "stone";
-                            } else if (blockString.equals(cobblestoneString)) {
-                                type = "cobblestone";
-                            }
-
-                            if (type != null) {
-                                BlockData blockData = new BlockData();
-                                blockData.position = new DwarfVector3(x, y, z);
-                                blockData.type = type;
-                                data.blocks.add(blockData);
-                            }
-                        }
-                    }
-                }
+                DwarfsData data = getChunkData(chunk);
                 writeData(data, incommingPath);
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
         return 0;
+    }
+
+    public static DwarfsData getChunkData(int x, int z) {
+        return getChunkData(serverWorld.getChunk(x / CHUNK_SIZE - 1, z / CHUNK_SIZE));
+    }
+
+    public static DwarfsData getChunkData(Chunk chunk) {
+        DwarfsData data = new DwarfsData();
+        data.blocks = new ArrayList<>();
+        int top = 0;
+        for (int x = 0; x < CHUNK_SIZE; x++) {
+            for (int z = 0; z < CHUNK_SIZE; z++) {
+                int newTop = chunk.getTopBlockY(Heightmap.Type.WORLD_SURFACE, x, z);
+                if (top < newTop) {
+                    top = newTop;
+                }
+            }
+        }
+        for (int y = 0; y < top; y++) {
+            for (int x = 0; x < CHUNK_SIZE; x++) {
+                for (int z = 0; z < CHUNK_SIZE; z++) {
+                    BlockPos blockPos = new BlockPos(x, y, z);
+                    BlockState blockState = chunk.getBlockState(blockPos);
+                    String blockString = blockState.toString();
+                    if (Allowed.BLOCKS.contains(blockString)) {
+                        BlockData blockData = new BlockData();
+                        blockData.position = new DwarfVector3(x, y, z);
+                        blockData.type = blockString;
+                        data.blocks.add(blockData);
+                    }
+                }
+            }
+        }
+        return data;
     }
 
     public static int importer(CommandContext<CommandSource> context) {
