@@ -6,12 +6,15 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.seirius.dwarftool.util.Allowed;
+import com.seirius.dwarftool.util.ChunkPosition;
+import com.seirius.dwarftool.util.DwarfsMolecule;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.Commands;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.gen.Heightmap;
@@ -114,13 +117,24 @@ public class DwarfsForge {
         return 0;
     }
 
+    public static ChunkPosition toChunkPosition(int blockX, int blockZ) {
+        return new ChunkPosition(blockX / CHUNK_SIZE - 1, blockZ / CHUNK_SIZE);
+    }
+
     public static DwarfsData getChunkData(int x, int z) {
-        return getChunkData(serverWorld.getChunk(x / CHUNK_SIZE - 1, z / CHUNK_SIZE));
+        ChunkPosition chunkPosition = toChunkPosition(x, z);
+        return getChunkData(serverWorld.getChunk(chunkPosition.x, chunkPosition.z));
     }
 
     public static DwarfsData getChunkData(Chunk chunk) {
+        return getChunkData(chunk, 0);
+    }
+
+    public static DwarfsData getChunkData(Chunk chunk, int minHeight) {
         DwarfsData data = new DwarfsData();
         data.blocks = new ArrayList<>();
+        ChunkPos chunkPos = chunk.getPos();
+        data.setChunkPosition(chunkPos.x, chunkPos.z);
         int top = 0;
         for (int x = 0; x < CHUNK_SIZE; x++) {
             for (int z = 0; z < CHUNK_SIZE; z++) {
@@ -130,7 +144,7 @@ public class DwarfsForge {
                 }
             }
         }
-        for (int y = 0; y < top; y++) {
+        for (int y = minHeight; y < top; y++) {
             for (int x = 0; x < CHUNK_SIZE; x++) {
                 for (int z = 0; z < CHUNK_SIZE; z++) {
                     BlockPos blockPos = new BlockPos(x, y, z);
@@ -146,6 +160,22 @@ public class DwarfsForge {
             }
         }
         return data;
+    }
+
+    public static DwarfsMolecule getMolecule(int x, int z, int radius) {
+        return getMolecule(x, z, radius, 0);
+    }
+
+    public static DwarfsMolecule getMolecule(int x, int z, int radius, int minHeight) {
+        DwarfsMolecule dwarfsMolecule = new DwarfsMolecule();
+        dwarfsMolecule.chunks = new ArrayList<>();
+        ChunkPosition chunkPosition = toChunkPosition(x, z);
+        for (int chunkX = chunkPosition.x - radius; chunkX <= chunkPosition.x + radius; chunkX++) {
+            for (int chunkZ = chunkPosition.z - radius; chunkZ <= chunkPosition.z + radius; chunkZ++) {
+                dwarfsMolecule.chunks.add(getChunkData(serverWorld.getChunk(chunkX, chunkZ), minHeight));
+            }
+        }
+        return dwarfsMolecule;
     }
 
     public static int importer(CommandContext<CommandSource> context) {
